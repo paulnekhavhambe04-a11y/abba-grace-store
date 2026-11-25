@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { @apply bg-ivory text-royal-900 font-sans antialiased; }
+
+@keyframes ag-glow { 0%,100% { filter: drop-shadow(0 0 6px rgba(226,185,79,.35)); transform: scale(1); }
+                     50%     { filter: drop-shadow(0 0 22px rgba(226,185,79,.85)); transform: scale(1.04); } }
+.ag-logo-pulse { animation: ag-glow 2.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+}
