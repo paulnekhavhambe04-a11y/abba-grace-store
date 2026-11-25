@@ -21,6 +21,7 @@ export default function App() {
           <Route path="*" element={<div className="py-24 text-center font-display text-3xl">Page not found</div>} />
         </Route>
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/reset-password" element={<AdminResetPassword />} />
         <Route path="/admin" element={<AdminGuard />}><Route index element={<AdminBooks />} /></Route>
       </Routes>
     </>
