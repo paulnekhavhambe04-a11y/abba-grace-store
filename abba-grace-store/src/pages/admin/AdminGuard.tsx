@@ -1,140 +1,143 @@
 
-import { useState, FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Loader2, Lock } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Navigate, Outlet } from 'react-router-dom'
+import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 
-export default function AdminLogin() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [message, setMessage] = useState('')
-  const nav = useNavigate()
+type AccessState = 'loading' | 'in' | 'out' | 'error'
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    setBusy(true)
-    setError('')
-    setMessage('')
+export default function AdminGuard() {
+  const [state, setState] = useState<AccessState>('loading')
+  const [errorMessage, setErrorMessage] = useState('')
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
+  useEffect(() => {
+    let alive = true
+    let timer: number | undefined
+
+    const checkAccess = async (existingSession?: Session | null) => {
+      setState('loading')
+      setErrorMessage('')
+
+      try {
+        let session = existingSession
+
+        if (session === undefined) {
+          const { data, error } = await supabase.auth.getSession()
+
+          if (error) throw error
+
+          session = data.session
+        }
+
+        if (!session) {
+          if (alive) setState('out')
+          return
+        }
+
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle()
+
+        if (error) throw error
+
+        if (!profile) {
+          if (alive) {
+            setErrorMessage(
+              'Your user account has no matching profile in the database.'
+            )
+            setState('error')
+          }
+          return
+        }
+
+        if (profile.role !== 'admin') {
+          if (alive) setState('out')
+          return
+        }
+
+        if (alive) setState('in')
+      } catch (error) {
+        console.error('Admin access check failed:', error)
+
+        if (alive) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : 'Could not verify admin permissions.'
+          )
+          setState('error')
+        }
+      }
+    }
+
+    void checkAccess()
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setState('out')
+        return
+      }
+
+      // Run the database check after the auth callback finishes.
+      if (timer !== undefined) window.clearTimeout(timer)
+
+      timer = window.setTimeout(() => {
+        void checkAccess(session)
+      }, 0)
     })
 
-    setBusy(false)
+    return () => {
+      alive = false
 
-    if (error) {
-      setError('Login failed. Check your email and password.')
-      return
-    }
-
-    nav('/admin')
-  }
-
-  const resetPassword = async () => {
-    if (!email) {
-      setError('Please enter your admin email first.')
-      return
-    }
-
-    setBusy(true)
-    setError('')
-    setMessage('')
-
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      email,
-      {
-        redirectTo: `${window.location.origin}/admin/reset-password`
+      if (timer !== undefined) {
+        window.clearTimeout(timer)
       }
-    )
 
-    setBusy(false)
-
-    if (error) {
-      setError(error.message)
-      return
+      subscription.unsubscribe()
     }
+  }, [])
 
-    setMessage('Password recovery email sent. Check your inbox.')
+  if (state === 'loading') {
+    return (
+      <div
+        className="min-h-screen grid place-items-center text-royal-600"
+        aria-busy="true"
+      >
+        Checking admin access...
+      </div>
+    )
   }
 
-  return (
-    <main className="min-h-screen grid place-items-center bg-gradient-to-br from-royal-900 to-royal-700 p-4">
-      <form
-        onSubmit={submit}
-        className="bg-ivory rounded-2xl p-8 w-full max-w-sm shadow-2xl"
-      >
-        <img
-          src="/brand/logo.webp"
-          alt="Abba Grace"
-          width={90}
-          height={90}
-          className="mx-auto"
-        />
+  if (state === 'error') {
+    return (
+      <main className="min-h-screen grid place-items-center bg-ivory p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
+          <h1 className="font-display text-2xl text-royal-800">
+            Admin Access Error
+          </h1>
 
-        <h1 className="font-display text-2xl text-center text-royal-800 mt-2">
-          Admin Login
-        </h1>
-
-        <label className="block mt-6 text-sm">
-          Email
-          <input
-            type="email"
-            required
-            autoComplete="username"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-royal-200 px-3 py-2"
-          />
-        </label>
-
-        <label className="block mt-4 text-sm">
-          Password
-          <input
-            type="password"
-            required
-            autoComplete="current-password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-royal-200 px-3 py-2"
-          />
-        </label>
-
-        <button
-          type="button"
-          onClick={resetPassword}
-          disabled={busy}
-          className="mt-3 text-sm text-royal-700 underline"
-        >
-          Forgot password?
-        </button>
-
-        {error && (
-          <p role="alert" className="text-red-700 text-sm mt-3">
-            {error}
+          <p className="mt-4 text-red-700 text-sm break-words">
+            {errorMessage}
           </p>
-        )}
 
-        {message && (
-          <p role="status" className="text-green-700 text-sm mt-3">
-            {message}
-          </p>
-        )}
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-6 w-full rounded-full bg-royal-700 text-white py-3"
+          >
+            Try Again
+          </button>
+        </div>
+      </main>
+    )
+  }
 
-        <button
-          disabled={busy}
-          className="mt-6 w-full flex items-center justify-center gap-2 rounded-full bg-royal-700 hover:bg-royal-600 text-white py-2.5 disabled:opacity-60"
-        >
-          {busy ? (
-            <Loader2 className="animate-spin" size={18} />
-          ) : (
-            <Lock size={16} />
-          )}
-          Sign in
-        </button>
-      </form>
-    </main>
-  )
+  if (state === 'out') {
+    return <Navigate to="/admin/login" replace />
+  }
+
+  return <Outlet />
 }
