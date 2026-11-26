@@ -6,6 +6,8 @@ import Store from './pages/Store'
 import BookPage from './pages/BookPage'
 import Checkout from './pages/Checkout'
 import Order from './pages/Order'
+import About from './pages/About'
+import { Terms, Privacy, Refunds } from './pages/Legal'
 import AdminResetPassword from './pages/admin/AdminResetPassword'
 import AdminGuard from './pages/admin/AdminGuard'
 import AdminLogin from './pages/admin/AdminLogin'
@@ -22,6 +24,10 @@ export default function App() {
           <Route path="/store/:slug" element={<BookPage />} />
           <Route path="/checkout/:slug" element={<Checkout />} />
           <Route path="/order/:token" element={<Order />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/refunds" element={<Refunds />} />
           <Route path="*" element={<div className="py-24 text-center font-display text-3xl">Page not found</div>} />
         </Route>
         <Route path="/admin/login" element={<AdminLogin />} />
