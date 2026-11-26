@@ -23,6 +23,7 @@ export default function Checkout() {
   const [email, setEmail] = useState('')
   const [firstName, setFirstName] = useState('')
   const [busy, setBusy] = useState(false)
+  const [agreed, setAgreed] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => { getBook(slug).then(setBook).catch(() => setBook(null)) }, [slug])
 
@@ -31,6 +32,7 @@ export default function Checkout() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
+    if (!agreed) { setError('Please tick the box to agree to the terms first.'); return }
     setBusy(true); setError('')
     try {
       const res = await fetch('/api/create-checkout', {
@@ -63,8 +65,12 @@ export default function Checkout() {
           <input type="email" required value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" maxLength={254} className="rounded-lg border border-royal-200 px-3 py-2 bg-white" />
           <span className="text-xs text-royal-500">PayFast sends your payment receipt here.</span>
         </label>
+        <label className="flex items-start gap-3 text-sm text-royal-800">
+          <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)} required className="mt-1 h-4 w-4 shrink-0" />
+          <span>I agree to the <Link to="/terms" target="_blank" className="underline text-royal-600">Terms and Conditions</Link>, the <Link to="/privacy" target="_blank" className="underline text-royal-600">Privacy Policy</Link> and the <Link to="/refunds" target="_blank" className="underline text-royal-600">Refund and Cancellation Policy</Link>.</span>
+        </label>
         {error && <p role="alert" className="text-red-700 text-sm">{error}</p>}
-        <button disabled={busy} className="inline-flex items-center justify-center gap-2 rounded-full bg-gold-500 hover:bg-gold-400 disabled:opacity-60 text-royal-900 font-semibold px-8 py-3">
+        <button disabled={busy || !agreed} className="inline-flex items-center justify-center gap-2 rounded-full bg-gold-500 hover:bg-gold-400 disabled:opacity-60 text-royal-900 font-semibold px-8 py-3">
           <Lock size={16} /> {busy ? 'Taking you to PayFast…' : `Pay ${formatZAR(currentPrice(book))} with PayFast`}
         </button>
         <p className="text-xs text-royal-500 text-center">Payment is handled securely by PayFast. We never see your card details.</p>
