@@ -1,3 +1,4 @@
+import { SITE } from '../data/site'
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { BookOpen, ShieldCheck, Download } from 'lucide-react'
@@ -47,7 +48,7 @@ export default function Home() {
       </section>
       <section id="contact" className="mx-auto max-w-4xl px-4 mt-16 text-center scroll-mt-20">
         <h2 className="font-display text-3xl text-royal-800">Contact</h2>
-        <p className="mt-4 text-royal-700">Questions about an order? Email <a className="text-royal-600 underline" href="mailto:contact@example.com">contact@example.com</a> (placeholder).</p>
+        <p className="mt-4 text-royal-700">Questions about an order? Email <a className="text-royal-600 underline" href={`mailto:${SITE.email}`}>{SITE.email}</a> or call {SITE.phone}.</p>
       </section>
     </>
   )
