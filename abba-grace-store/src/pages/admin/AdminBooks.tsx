@@ -4,13 +4,13 @@ import { Loader2, Upload, LogOut, Trash2, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 
 interface Row { id: string; slug: string; title: string; author: string; category: string; short_description: string; description: string
-  cover_path: string | null; file_path: string | null; price_cents: number; sale_price_cents: number | null; is_published: boolean; is_featured: boolean }
+  cover_path: string | null; file_path: string | null; price_cents: number; sale_price_cents: number | null; is_published: boolean; is_featured: boolean; availability: 'available' | 'unavailable' | 'coming_soon' }
 
 const MAX_COVER = 5 * 1024 * 1024, MAX_PDF = 100 * 1024 * 1024
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 const rand = () => crypto.randomUUID().slice(0, 8)
 
-const empty = { title: '', author: '', category: 'Devotionals', short_description: '', description: '', price: '', sale: '', published: true, featured: true }
+const empty = { title: '', author: '', category: 'Devotionals', short_description: '', description: '', price: '', sale: '', published: true, featured: true, availability: 'available' as 'available' | 'unavailable' | 'coming_soon' }
 
 export default function AdminBooks() {
   const nav = useNavigate()
@@ -31,7 +31,7 @@ export default function AdminBooks() {
   const startEdit = (r: Row | null) => {
     setEditing(r); setCover(null); setPdf(null); setMsg(null)
     setF(r ? { title: r.title, author: r.author, category: r.category, short_description: r.short_description, description: r.description,
-      price: (r.price_cents / 100).toFixed(2), sale: r.sale_price_cents != null ? (r.sale_price_cents / 100).toFixed(2) : '', published: r.is_published, featured: r.is_featured } : empty)
+      price: (r.price_cents / 100).toFixed(2), sale: r.sale_price_cents != null ? (r.sale_price_cents / 100).toFixed(2) : '', published: r.is_published, featured: r.is_featured, availability: r.availability } : empty)
   }
 
   const submit = async (e: FormEvent) => {
@@ -43,7 +43,7 @@ export default function AdminBooks() {
     if (sale !== null && (!Number.isFinite(sale) || sale < 0 || sale >= price)) return setMsg({ ok: false, text: 'Sale price must be lower than the normal price.' })
     if (cover && (!['image/jpeg', 'image/png', 'image/webp'].includes(cover.type) || cover.size > MAX_COVER)) return setMsg({ ok: false, text: 'Cover must be a JPG, PNG or WebP under 5 MB.' })
     if (pdf && (pdf.type !== 'application/pdf' || pdf.size > MAX_PDF)) return setMsg({ ok: false, text: 'Book file must be a PDF under 100 MB.' })
-    if (!editing && !pdf) return setMsg({ ok: false, text: 'Please choose the book PDF.' })
+    if (!editing && !pdf && f.availability === 'available') return setMsg({ ok: false, text: 'Please choose the book PDF.' })
 
     setBusy(true)
     try {
@@ -65,7 +65,7 @@ export default function AdminBooks() {
       }
       const payload = { title: f.title.trim(), author: f.author.trim(), category: f.category.trim() || 'Devotionals',
         short_description: f.short_description.trim(), description: f.description.trim(), price_cents: price, sale_price_cents: sale,
-        is_published: f.published, is_featured: f.featured, cover_path, file_path, updated_at: new Date().toISOString() }
+        is_published: f.published, is_featured: f.featured, availability: f.availability, cover_path, file_path, updated_at: new Date().toISOString() }
       if (f.featured) await supabase.from('books').update({ is_featured: false }).neq('id', editing?.id ?? '00000000-0000-0000-0000-000000000000')
       const { error } = editing
         ? await supabase.from('books').update(payload).eq('id', editing.id)
@@ -104,7 +104,7 @@ export default function AdminBooks() {
             <ul className="mt-4 space-y-3">{rows.map(r => (
               <li key={r.id} className="bg-white rounded-xl p-4 border border-royal-100 flex items-center justify-between gap-3">
                 <div><p className="font-medium text-royal-800">{r.title}</p>
-                  <p className="text-xs text-royal-500">R{(r.price_cents / 100).toFixed(2)} · {r.is_published ? 'Published' : 'Hidden'} · {r.file_path ? 'PDF uploaded' : 'No PDF'}</p></div>
+                  <p className="text-xs text-royal-500">R{(r.price_cents / 100).toFixed(2)} · {r.availability === 'available' ? 'Available' : r.availability === 'coming_soon' ? 'Coming soon' : 'Not available'} · {r.is_published ? 'Visible' : 'Hidden'} · {r.file_path ? 'PDF uploaded' : 'No PDF'}</p></div>
                 <div className="flex gap-2 text-sm"><button onClick={() => startEdit(r)} className="px-3 py-1 rounded-full border border-royal-300 hover:bg-royal-50">Edit</button>
                   <button onClick={() => remove(r)} aria-label={`Delete ${r.title}`} className="p-2 text-red-700 hover:bg-red-50 rounded-full"><Trash2 size={16} /></button></div>
               </li>))}</ul>}
@@ -120,6 +120,12 @@ export default function AdminBooks() {
             <label className="block text-sm">Price (R)<input inputMode="decimal" className={input} value={f.price} onChange={e => setF({ ...f, price: e.target.value })} placeholder="150.00" required /></label>
             <label className="block text-sm">Sale price (R)<input inputMode="decimal" className={input} value={f.sale} onChange={e => setF({ ...f, sale: e.target.value })} placeholder="optional" /></label>
           </div>
+          <label className="block mt-4 text-sm">Availability
+            <select className={input} value={f.availability} onChange={e => setF({ ...f, availability: e.target.value as typeof f.availability })}>
+              <option value="available">Available (can be bought)</option>
+              <option value="coming_soon">Coming soon (cannot be bought yet)</option>
+              <option value="unavailable">Not available (cannot be bought)</option>
+            </select></label>
           <label className="block mt-4 text-sm">Cover image {editing && '(leave empty to keep current)'}
             <input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => setCover(e.target.files?.[0] ?? null)} className="mt-1 block w-full text-sm" /></label>
           <label className="block mt-3 text-sm">Book PDF {editing && '(leave empty to keep current)'}
