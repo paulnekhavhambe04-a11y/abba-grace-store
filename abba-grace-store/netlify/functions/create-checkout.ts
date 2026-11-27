@@ -1,58 +1,40 @@
 import type { Handler } from '@netlify/functions'
-import { randomBytes } from 'node:crypto'
-import { admin } from '../lib/supabaseAdmin'
-import { buildCheckoutFields, pfConfig } from '../lib/payfast'
-import { json, siteUrl } from '../lib/http'
+import { db, json, cents } from './_shared/db'
+import { signature, processUrl } from './_shared/payfast'
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const MIN_CENTS = 500 // PayFast does not accept payments below R5.00
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' })
-  let body: Record<string, unknown>
-  try { body = JSON.parse(event.body ?? '{}') } catch { return json(400, { error: 'Invalid request.' }) }
+  let body: { slug?: string; name?: string; email?: string }
+  try { body = JSON.parse(event.body ?? '{}') } catch { return json(400, { error: 'Bad request' }) }
+  const slug = String(body.slug ?? ''), name = String(body.name ?? '').trim().slice(0, 80), email = String(body.email ?? '').trim().toLowerCase().slice(0, 120)
+  if (!slug || name.length < 2 || !EMAIL.test(email)) return json(400, { error: 'Please enter your full name and a valid email.' })
 
-  const slug = String(body.slug ?? '').slice(0, 200)
-  const email = String(body.email ?? '').trim().toLowerCase()
-  const firstName = String(body.firstName ?? '').trim().slice(0, 100)
-  if (!slug) return json(400, { error: 'Missing book.' })
-  if (email.length > 254 || !EMAIL_RE.test(email)) return json(400, { error: 'Please enter a valid email address.' })
+  const sb = db()
+  // Price comes from the database, never from the browser.
+  const { data: book } = await sb.from('books').select('id,title,price_cents,sale_price_cents,file_path,availability').eq('slug', slug).eq('is_published', true).maybeSingle()
+  if (!book || !book.file_path || book.availability !== 'available') return json(404, { error: 'This book is not available.' })
+  const total = book.sale_price_cents ?? book.price_cents
+  if (total < 100) return json(400, { error: 'Invalid price.' })   // PayFast minimum is R5 in practice; guard against zero
 
-  const cfg = pfConfig()
-  if (!cfg.merchantId || !cfg.merchantKey) {
-    console.error('PayFast is not configured: set PAYFAST_MERCHANT_ID and PAYFAST_MERCHANT_KEY')
-    return json(500, { error: 'Payments are not set up yet. Please try again later.' })
-  }
+  const { data: order, error } = await sb.from('orders').insert({
+    book_id: book.id, book_title: book.title, customer_name: name, customer_email: email,
+    subtotal_cents: book.price_cents, discount_cents: book.price_cents - total, total_cents: total
+  }).select('id,order_number,access_token').single()
+  if (error || !order) return json(500, { error: 'Could not start your order. Please try again.' })
 
-  try {
-    const db = admin()
-    // Price ALWAYS comes from the database, never from the browser.
-    const { data: book, error } = await db.from('books')
-      .select('id,slug,title,short_description,file_path,price_cents,sale_price_cents')
-      .eq('slug', slug).eq('is_published', true).maybeSingle()
-    if (error) throw error
-    if (!book) return json(404, { error: 'Book not found.' })
-    if (!book.file_path) return json(409, { error: 'This book is not ready for sale yet.' })
-    const amountCents: number = book.sale_price_cents ?? book.price_cents
-    if (amountCents < MIN_CENTS) return json(409, { error: 'This book cannot be bought online at this price (PayFast minimum is R5.00).' })
-
-    const token = randomBytes(24).toString('hex')
-    const { data: order, error: insErr } = await db.from('orders').insert({
-      book_id: book.id, email, first_name: firstName || null, amount_cents: amountCents, download_token: token
-    }).select('id').single()
-    if (insErr) throw insErr
-
-    const site = siteUrl(event.headers)
-    const fields = buildCheckoutFields(cfg, {
-      returnUrl: `${site}/order/${token}`,
-      cancelUrl: `${site}/store/${book.slug}?payment=cancelled`,
-      notifyUrl: `${site}/.netlify/functions/payfast-itn`,
-      firstName, email, orderId: order.id, amountCents,
-      itemName: book.title, itemDescription: book.short_description
-    })
-    return json(200, { action: cfg.processUrl, fields })
-  } catch (e) {
-    console.error('create-checkout failed', e)
-    return json(500, { error: 'Something went wrong starting your payment. Please try again.' })
-  }
+  const site = (process.env.SITE_URL ?? '').replace(/\/$/, '')
+  const [first, ...rest] = name.split(/\s+/)
+  // Field ORDER matters for the signature (PayFast documented order).
+  const pairs: [string, string][] = [
+    ['merchant_id', process.env.PAYFAST_MERCHANT_ID ?? ''], ['merchant_key', process.env.PAYFAST_MERCHANT_KEY ?? ''],
+    ['return_url', `${site}/order/${order.id}?t=${order.access_token}`],
+    ['cancel_url', `${site}/order/${order.id}?t=${order.access_token}&cancelled=1`],
+    ['notify_url', `${site}/.netlify/functions/payfast-itn`],
+    ['name_first', first], ['name_last', rest.join(' ')], ['email_address', email],
+    ['m_payment_id', order.id], ['amount', cents(total)], ['item_name', book.title.slice(0, 100)]
+  ]
+  const fields = Object.fromEntries(pairs.filter(([, v]) => v !== ''))
+  return json(200, { action: processUrl(), fields: { ...fields, signature: signature(pairs) } })
 }
