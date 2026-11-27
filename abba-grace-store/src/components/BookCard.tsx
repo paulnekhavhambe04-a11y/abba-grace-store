@@ -1,6 +1,12 @@
 import { Link } from 'react-router-dom'
 import { Book, currentPrice, formatZAR } from '../data/books'
 
+const STATUS = {
+  available: ['Available', 'bg-green-100 text-green-800'],
+  coming_soon: ['Coming soon', 'bg-amber-100 text-amber-800'],
+  unavailable: ['Not available', 'bg-red-100 text-red-800']
+} as const
+
 export const BookCardSkeleton = () => (
   <div className="rounded-2xl bg-white p-4 shadow animate-pulse" aria-hidden="true">
     <div className="aspect-[3/4] rounded-xl bg-royal-100" /><div className="h-5 w-3/4 bg-royal-100 rounded mt-4" /><div className="h-4 w-1/2 bg-royal-100 rounded mt-2" /><div className="h-9 bg-royal-100 rounded-full mt-4" />
@@ -20,7 +26,7 @@ export default function BookCard({ book }: { book: Book }) {
         <p className="font-semibold text-gold-600 text-lg">
           {book.salePriceCents && <s className="text-royal-300 text-sm mr-2">{formatZAR(book.priceCents)}</s>}{formatZAR(currentPrice(book))}
         </p>
-        <span className={`text-xs px-2 py-1 rounded-full ${book.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{book.available ? 'Available' : 'Unavailable'}</span>
+        <span className={`text-xs px-2 py-1 rounded-full ${STATUS[book.availability][1]}`}>{STATUS[book.availability][0]}</span>
       </div>
       <Link to={`/store/${book.slug}`} className="mt-4 text-center rounded-full bg-royal-700 hover:bg-royal-600 text-white py-2.5 text-sm font-medium transition-colors">View Book</Link>
     </article>
