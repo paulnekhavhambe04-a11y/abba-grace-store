@@ -3,11 +3,11 @@ import { supabase } from '../lib/supabase'
 export interface Book {
   id: string; slug: string; title: string; author: string; category: string
   shortDescription: string; description: string; coverUrl: string
-  priceCents: number; salePriceCents?: number; format: 'PDF'; available: boolean; featured: boolean
+  priceCents: number; salePriceCents?: number; format: 'PDF'; availability: 'available' | 'unavailable' | 'coming_soon'; featured: boolean
 }
 
 // Columns safe for the public. file_path (the private PDF location) is never selected here.
-const COLS = 'id,slug,title,author,category,short_description,description,cover_path,price_cents,sale_price_cents,is_featured,is_published'
+const COLS = 'id,slug,title,author,category,short_description,description,cover_path,price_cents,sale_price_cents,is_featured,is_published,availability'
 
 export const coverUrlFor = (path: string | null) =>
   path ? `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/covers/${path}` : '/brand/logo.webp'
@@ -17,7 +17,7 @@ const toBook = (r: any): Book => ({
   id: r.id, slug: r.slug, title: r.title, author: r.author, category: r.category,
   shortDescription: r.short_description, description: r.description, coverUrl: coverUrlFor(r.cover_path),
   priceCents: r.price_cents, salePriceCents: r.sale_price_cents ?? undefined, format: 'PDF',
-  available: r.is_published, featured: r.is_featured
+  availability: r.availability, featured: r.is_featured
 })
 
 export const formatZAR = (cents: number) => 'R' + (cents / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
