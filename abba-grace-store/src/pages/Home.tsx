@@ -44,7 +44,8 @@ export default function Home() {
 
       <section id="about" className="mx-auto max-w-4xl px-4 mt-20 text-center scroll-mt-20">
         <h2 className="font-display text-3xl text-royal-800">About Abba Grace</h2>
-        <p className="mt-4 text-royal-700">Abba Grace International Church is a community of believers committed to the message of God's grace. This store makes our teachings and devotionals available to you wherever you are. PLACEHOLDER: replace with the church's own description.</p>
+        <p className="mt-4 text-royal-700">Abba Grace International Church is a community of believers committed to the message of God's grace. This store makes our teachings and devotionals available to you wherever you are. Founded and led by {SITE.founder}.</p>
+        <Link to="/about" className="inline-block mt-4 text-royal-600 underline">Read more about us</Link>
       </section>
       <section id="contact" className="mx-auto max-w-4xl px-4 mt-16 text-center scroll-mt-20">
         <h2 className="font-display text-3xl text-royal-800">Contact</h2>
